@@ -32,8 +32,9 @@ st.divider()
 
 st.sidebar.markdown("""
 ## Our Paid Apps
-* [tradeslyFX Forex AI Roboadvisor](https://play.google.com/store/apps/details?id=com.tradesly.tradeslyfx)
-* [tradeslyPro Cryptocurrency AI Roboadvisor](https://play.google.com/store/apps/details?id=com.tradesly.tradeslypro)
+* [tradeslyFX Forex](https://play.google.com/store/apps/details?id=com.tradesly.tradeslyfx)
+* [tradeslyPro Cryptocurrency](https://play.google.com/store/apps/details?id=com.tradesly.tradeslypro)
+* [tradeslyNX Borsa Istanbul](https://play.google.com/store/apps/details?id=com.tradesly.tradeslynxbist)
             """)
 
 st.sidebar.divider()
