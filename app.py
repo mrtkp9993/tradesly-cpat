@@ -4,7 +4,7 @@ import yfinance as yf
 import numpy as np
 import talib
 import pandas_ta as ta
-from lib.candlestick_pat_names import candlestickNames
+from lib.candlestick_pat_names import replace_pattern_name
 
 st.set_page_config(page_title="tradesly: Candlestick Pattern Backtesting", page_icon=":chart_with_upwards_trend:", layout="wide")
 
@@ -42,6 +42,9 @@ st.sidebar.divider()
 # Get stock code
 stock_code = st.sidebar.text_input("Enter stock code", value="AAPL")
 
+# Get Period
+period = st.sidebar.selectbox("Period", ["Daily", "Intra-day"], index=0)
+
 # Stop loss percentage
 stoploss = st.sidebar.slider("Stop Loss", min_value=0.0, max_value=1.0, value=0.05)
 
@@ -53,7 +56,7 @@ analyze_button = st.sidebar.button("Analyze")
 
 if analyze_button:
     with st.spinner("Get data..."):
-        df = yf.download(stock_code, period="max")
+        df = yf.download(stock_code, period="max" if period == 'Daily' else '2y', interval="1d" if period == "Daily" else "1h")
 
     if df.shape[0] == 0 or df.shape[1] < 6:
         st.error(f"No data found for {stock_code}.")
@@ -61,7 +64,13 @@ if analyze_button:
     with st.spinner("Calculating patterns..."):
         df.ta.cdl_pattern(name="all", append=True)
 
-    results = pd.DataFrame(columns = ['Pattern', 'Trade Count', 'Win', 'Loss', 'Win Rate', 'Min Return %', 'Max Return %', 'Avg Return %'])
+    for pattern in df.columns[7:]:
+        df[f"{pattern} (Bullish)"] = df[pattern].apply(lambda x: 100 if x > 0 else 0)
+        df[f"{pattern} (Bearish)"] = df[pattern].apply(lambda x: 100 if x < 0 else 0)
+        # delete original pattern column
+        del df[pattern]
+
+    results = []
     with st.spinner("Backtesting..."):
         for pattern in df.columns[7:]:
             hold = False
@@ -86,13 +95,18 @@ if analyze_button:
                         loss += 1
                         hold = False
                         pct_returns.append((sl_price - entry) / entry)
-                except:
+                except Exception as e:
+                    print(e)
                     pass
+
             if trade_count > 0:
-                results = results.append({'Pattern': pattern, 'Trade Count': trade_count, 'Win': win, 'Loss': loss, 'Win Rate': win/trade_count, 'Avg Return %': np.mean(pct_returns)}, ignore_index=True)
+                results.append({'Pattern': pattern, 'Trade Count': trade_count, 'Win': win, 'Loss': loss, 'Win Rate': win/trade_count, 'Avg Return %': np.mean(pct_returns)})
+
+    results = pd.DataFrame(results)
+
     with st.spinner("Cleaning results..."):
         results = results[results['Trade Count'] > 1]
-        results['Pattern'] = results['Pattern'].apply(lambda x: candlestickNames[x])
+        results['Pattern'] = results['Pattern'].apply(replace_pattern_name)
         results = results.sort_values(by=['Avg Return %'], ascending=False)
         results = results.reset_index(drop=True)
         results = results.round(3)
