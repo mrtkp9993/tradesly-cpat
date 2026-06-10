@@ -2,9 +2,8 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import numpy as np
-import talib
 import pandas_ta as ta
-from lib.candlestick_pat_names import replace_pattern_name
+from candlestick_pat_names import replace_pattern_name
 
 st.set_page_config(page_title="tradesly: Candlestick Pattern Backtesting", page_icon=":chart_with_upwards_trend:", layout="wide")
 
@@ -17,25 +16,8 @@ footer {visibility: hidden;}
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-st.sidebar.image("assets/banner.webp", use_column_width=True)
-st.header("tradesly: Candlestick Pattern Backtesting")
+st.sidebar.header("tradesly: Candlestick Pattern Backtesting")
 
-st.markdown("""Backtest Candlestick Patterns with simple strategy.
-
-1. If signal, buy at open of next candle.
-2. If price is above `entry * (1 + take profit)`, sell at open of next candle.
-3. If price is below `entry * (1 - stop loss)`, sell at open of next candle.
-
-            """)
-
-st.divider()
-
-st.sidebar.markdown("""
-## Our Paid Apps
-* [tradeslyFX Forex](https://play.google.com/store/apps/details?id=com.tradesly.tradeslyfx)
-* [tradeslyPro Cryptocurrency](https://play.google.com/store/apps/details?id=com.tradesly.tradeslypro)
-* [tradeslyNX Borsa Istanbul](https://play.google.com/store/apps/details?id=com.tradesly.tradeslynxbist)
-            """)
 
 st.sidebar.divider()
 
@@ -54,55 +36,79 @@ takeprofit = st.sidebar.slider("Take Profit", min_value=0.0, max_value=1.0, valu
 # Analyze button
 analyze_button = st.sidebar.button("Analyze")
 
+def backtest(signal, direction, opens, highs, lows):
+    hold = False
+    trade_count = win = loss = 0
+    pct_returns = []
+    entry = tp_price = sl_price = 0.0
+    for i in range(len(signal) - 1):
+        if not hold and signal[i]:
+            entry = opens[i + 1]
+            hold = True
+            if direction == "long":
+                tp_price = entry * (1 + takeprofit)
+                sl_price = entry * (1 - stoploss)
+            else:
+                tp_price = entry * (1 - takeprofit)
+                sl_price = entry * (1 + stoploss)
+        elif hold:
+            if direction == "long":
+                hit_tp = highs[i + 1] >= tp_price
+                hit_sl = lows[i + 1] <= sl_price
+            else:
+                hit_tp = lows[i + 1] <= tp_price
+                hit_sl = highs[i + 1] >= sl_price
+            if hit_tp:
+                trade_count += 1
+                win += 1
+                hold = False
+                pct_returns.append(takeprofit)
+            elif hit_sl:
+                trade_count += 1
+                loss += 1
+                hold = False
+                pct_returns.append(-stoploss)
+
+    if trade_count == 0:
+        return None
+    return {'Trade Count': trade_count, 'Win': win, 'Loss': loss,
+            'Win Rate': win / trade_count, 'Avg Return %': np.mean(pct_returns)}
+
+
 if analyze_button:
     with st.spinner("Get data..."):
-        df = yf.download(stock_code, period="max" if period == 'Daily' else '2y', interval="1d" if period == "Daily" else "1h")
+        df = yf.download(stock_code, period="max" if period == 'Daily' else '2y',
+                         interval="1d" if period == "Daily" else "1h",
+                         auto_adjust=True, multi_level_index=False, progress=False)
 
-    if df.shape[0] == 0 or df.shape[1] < 6:
+    if df is None or df.empty:
         st.error(f"No data found for {stock_code}.")
+        st.stop()
 
     with st.spinner("Calculating patterns..."):
         df.ta.cdl_pattern(name="all", append=True)
 
-    for pattern in df.columns[7:]:
-        df[f"{pattern} (Bullish)"] = df[pattern].apply(lambda x: 100 if x > 0 else 0)
-        df[f"{pattern} (Bearish)"] = df[pattern].apply(lambda x: 100 if x < 0 else 0)
-        # delete original pattern column
-        del df[pattern]
+    pattern_cols = [c for c in df.columns if c.startswith("CDL")]
+    opens = df['Open'].to_numpy()
+    highs = df['High'].to_numpy()
+    lows = df['Low'].to_numpy()
 
     results = []
     with st.spinner("Backtesting..."):
-        for pattern in df.columns[7:]:
-            hold = False
-            trade_count = 0
-            win = 0
-            loss = 0
-            pct_returns = []
-            for i in range(len(df.index)-1):
-                try:
-                    if not hold and df[pattern][i] == 100.0:
-                        entry = df['Open'][i+1]
-                        hold = True
-                        sl_price = entry * (1 - stoploss)
-                        tp_price = entry * (1 + takeprofit)
-                    elif hold and df['High'][i+1] >= tp_price:
-                        trade_count += 1
-                        win += 1
-                        hold = False
-                        pct_returns.append((tp_price - entry) / entry)
-                    elif hold and df['Low'][i+1] <= sl_price:
-                        trade_count += 1
-                        loss += 1
-                        hold = False
-                        pct_returns.append((sl_price - entry) / entry)
-                except Exception as e:
-                    print(e)
-                    pass
-
-            if trade_count > 0:
-                results.append({'Pattern': pattern, 'Trade Count': trade_count, 'Win': win, 'Loss': loss, 'Win Rate': win/trade_count, 'Avg Return %': np.mean(pct_returns)})
+        for pattern in pattern_cols:
+            values = df[pattern].to_numpy()
+            bullish = backtest(values > 0, "long", opens, highs, lows)
+            if bullish is not None:
+                results.append({'Pattern': f"{pattern} (Bullish)", **bullish})
+            bearish = backtest(values < 0, "short", opens, highs, lows)
+            if bearish is not None:
+                results.append({'Pattern': f"{pattern} (Bearish)", **bearish})
 
     results = pd.DataFrame(results)
+
+    if results.empty:
+        st.warning(f"No patterns produced any trades for {stock_code} with the chosen settings.")
+        st.stop()
 
     with st.spinner("Cleaning results..."):
         results = results[results['Trade Count'] > 1]
@@ -112,4 +118,4 @@ if analyze_button:
         results = results.round(3)
         results = results[['Pattern', 'Trade Count', 'Win', 'Loss', 'Win Rate', 'Avg Return %']]
 
-    st.dataframe(results, use_container_width=True, hide_index=True)
+    st.dataframe(results, width="stretch", hide_index=True)

@@ -1,8 +1,6 @@
-[![tradesly-banner](/assets/banner.webp 'tradesly')](https://play.google.com/store/apps/dev?id=5038681831410981927)
-
 # tradesly: Candlestick Pattern Backtesting
 
-...
+A Streamlit app that backtests the 60+ TA-Lib candlestick patterns with a simple take-profit / stop-loss strategy.
 
 ![Screenshot](/assets/res.png)
 
@@ -27,9 +25,3 @@ OR
 2. ```cd tradesly-cpat```
 3. ```docker build -t tradesly-cpat .```
 4. ```docker run -p 8501:8501 tradesly-cpat```
-
-## Our Paid Apps
-
-* [tradeslyFX Forex AI Roboadvisor](https://play.google.com/store/apps/details?id=com.tradesly.tradeslyfx)
-
-* [tradeslyPro Cryptocurrency AI Roboadvisor](https://play.google.com/store/apps/details?id=com.tradesly.tradeslypro)

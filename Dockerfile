@@ -1,26 +1,28 @@
-FROM python:3.9-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
+# Build and install the TA-Lib C library (required by the TA-Lib Python wheel).
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    software-properties-common \
-    git \
     g++ \
     gcc \
     && rm -rf /var/lib/apt/lists/* \
-    && curl -L -O http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz \
-    && tar -zxf ta-lib-0.4.0-src.tar.gz \
-    && cd ta-lib/ \
+    && curl -L -O https://github.com/TA-Lib/ta-lib/releases/download/v0.6.4/ta-lib-0.6.4-src.tar.gz \
+    && tar -zxf ta-lib-0.6.4-src.tar.gz \
+    && cd ta-lib-0.6.4/ \
     && ./configure --prefix=/usr \
     && make \
     && make install \
-    && pip install ta-lib
+    && cd .. \
+    && rm -rf ta-lib-0.6.4 ta-lib-0.6.4-src.tar.gz
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-
-RUN pip install -r requirements.txt
 
 EXPOSE 8501
 
