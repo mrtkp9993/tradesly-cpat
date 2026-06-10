@@ -18,7 +18,6 @@ st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 st.sidebar.header("tradesly: Candlestick Pattern Backtesting")
 
-
 st.sidebar.divider()
 
 # Get stock code
@@ -35,6 +34,9 @@ takeprofit = st.sidebar.slider("Take Profit", min_value=0.0, max_value=1.0, valu
 
 # Analyze button
 analyze_button = st.sidebar.button("Analyze")
+
+st.sidebar.divider()
+st.sidebar.link_button("Website", "https://muratkoptur.com")
 
 def backtest(signal, direction, opens, highs, lows):
     hold = False
@@ -71,8 +73,18 @@ def backtest(signal, direction, opens, highs, lows):
 
     if trade_count == 0:
         return None
-    return {'Trade Count': trade_count, 'Win': win, 'Loss': loss,
-            'Win Rate': win / trade_count, 'Avg Return %': np.mean(pct_returns)}
+    gross_win = win * takeprofit
+    gross_loss = loss * stoploss
+    total_return = float(np.prod([1 + r for r in pct_returns]) - 1)
+    return {
+        'Trade Count': trade_count,
+        'Win': win,
+        'Loss': loss,
+        'Win Rate %': win / trade_count * 100,
+        'Avg Return %': float(np.mean(pct_returns)) * 100,
+        'Total Return %': total_return * 100,
+        'Profit Factor': gross_win / gross_loss if gross_loss > 0 else np.inf,
+    }
 
 
 if analyze_button:
@@ -112,10 +124,12 @@ if analyze_button:
 
     with st.spinner("Cleaning results..."):
         results = results[results['Trade Count'] > 1]
+        results = results[(results['Win Rate %'] > 0) & (results['Win Rate %'] < 100)]
         results['Pattern'] = results['Pattern'].apply(replace_pattern_name)
         results = results.sort_values(by=['Avg Return %'], ascending=False)
         results = results.reset_index(drop=True)
         results = results.round(3)
-        results = results[['Pattern', 'Trade Count', 'Win', 'Loss', 'Win Rate', 'Avg Return %']]
+        results = results[['Pattern', 'Trade Count', 'Win', 'Loss', 'Win Rate %',
+                           'Avg Return %', 'Total Return %', 'Profit Factor']]
 
     st.dataframe(results, width="stretch", hide_index=True)

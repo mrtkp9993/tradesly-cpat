@@ -1,4 +1,5 @@
 # tradesly: Candlestick Pattern Backtesting
+[Website](https://muratkoptur.com)
 
 A Streamlit app that backtests the 60+ TA-Lib candlestick patterns with a simple take-profit / stop-loss strategy.
 
